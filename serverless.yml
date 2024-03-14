@@ -1,0 +1,53 @@
+org: marciojrdev
+app: nodeless
+service: pai-bot
+frameworkVersion: "3"
+
+plugins:
+  - serverless-esbuild
+
+custom:
+  tableName: "photos-table-${sls:stage}"
+  esbuild:
+    bundle: true
+    minify: false
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  timeout: 10
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource:
+            - Fn::GetAtt: [PhotosTable, Arn]
+  environment:
+    PHOTOS_TABLE: ${self:custom.tableName}
+
+functions:
+  api:
+    handler: handler.handler
+    events:
+      - httpApi: "*"
+
+resources:
+  Resources:
+    PhotosTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: whatsappId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: whatsappId
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:custom.tableName}
