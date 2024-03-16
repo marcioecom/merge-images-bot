@@ -1,76 +1,95 @@
-import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import { DynamoDB } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
+import "dotenv/config";
 import express from "express";
-import serverless from "serverless-http";
-import log from 'lambda-log';
+import log from "lambda-log";
+import twilio from "twilio";
+
+import { mergeImagesFake } from "./utils/index.js";
+
+const { MessagingResponse } = twilio.twiml;
 
 const app = express();
 const PHOTOS_TABLE = process.env.PHOTOS_TABLE;
-const dynamoDbClient = DynamoDBDocument.from(new DynamoDB());
+const dynamoDbClient = DynamoDBDocument.from(
+  new DynamoDB({
+    region: process.env.AWS_REGION,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
+  })
+);
 
 app.use(express.json());
 
-app.get("/bot", async (req, res) => {
-  log.info('start get /bot');
+app.post("/", async (req, res) => {
+  log.info("start get /");
+
+  const { body } = req;
 
   const params = {
     TableName: PHOTOS_TABLE,
     Key: {
-      whatsappId: req.query.WaId,
+      whatsappId: body.WaId,
     },
   };
 
   try {
-    const { Item } = await dynamoDbClient.get(params);
-
-    if (!Item) {
-      return res
-        .status(404)
-        .json({ error: 'Could not find number with provided "whatsappId"' });
+    if (!("NumMedia" in body) || parseInt(body.NumMedia) === 0) {
+      const message = new MessagingResponse().message("Envie uma imagem!");
+      res.set("Content-Type", "text/xml");
+      return res.send(message.toString()).status(200);
     }
 
-    const { userId, name, email } = Item;
+    const { Item } = await dynamoDbClient.get(params);
 
-    log.info('end successfully get /bot');
-    return res.json({ userId, name, email });
-  } catch (error) {
-    console.log(error);
-    log.error('end error get /bot');
-    return res
-      .status(500)
-      .json({
-        message: "Could not retrieve number",
-        error: error.message,
+    if (!Item || Item.imagesUrl.length === 2) {
+      await dynamoDbClient.put({
+        TableName: PHOTOS_TABLE,
+        Item: {
+          whatsappId: body.WaId,
+          imagesUrl: [body.MediaUrl0],
+        },
       });
-  }
-});
 
-app.post("/bot", async (req, res) => {
-  log.info('start post /bot');
-  const { whatsappId, name, email } = req.body;
+      const message = new MessagingResponse().message(
+        "Obrigado pela imagem! Envie outra para finalizar!"
+      );
+      res.set("Content-Type", "text/xml");
+      return res.send(message.toString()).status(200);
+    }
 
-  const params = {
-    TableName: PHOTOS_TABLE,
-    Item: {
-      whatsappId,
-      name,
-      email,
-    },
-  };
+    const { imagesUrl } = Item;
 
-  try {
-    await dynamoDbClient.put(params);
-    log.info('end successfully post /bot');
-    return res.json({ whatsappId, name, email });
+    imagesUrl.push(body.MediaUrl0);
+
+    await dynamoDbClient.update({
+      TableName: PHOTOS_TABLE,
+      Key: {
+        whatsappId: body.WaId,
+      },
+      UpdateExpression: "set imagesUrl = :imagesUrl",
+      ExpressionAttributeValues: {
+        ":imagesUrl": imagesUrl,
+      },
+    });
+
+    const message = new MessagingResponse().message(
+      "Aqui está a imagem final!"
+    );
+    const finalImageUrl = mergeImagesFake(imagesUrl[0], imagesUrl[1]);
+    message.media(finalImageUrl);
+
+    log.info("end successfully get /");
+    res.set("Content-Type", "text/xml");
+    return res.send(message.toString()).status(200);
   } catch (error) {
-    console.log(error);
-    log.error('end error post /bot');
-    return res
-      .status(500)
-      .json({
-        message: "Could not create number",
-        error: error.message,
-      });
+    log.error("end error get /", { error: error.message });
+    return res.status(500).json({
+      message: "Could not retrieve numbers",
+      error: error.message,
+    });
   }
 });
 
