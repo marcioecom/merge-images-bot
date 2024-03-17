@@ -1,0 +1,19 @@
+{
+  "Records": [
+    {
+      "body": {
+        "imagesUrl": [
+          {
+            "mediaUrl": "/tmp/image1.jpg",
+            "mediaContentType": "image/jpeg"
+          },
+          {
+            "mediaUrl": "/tmp/image2.jpg",
+            "mediaContentType": "image/jpeg"
+          }
+        ],
+        "whatsappId": "5511999999999"
+      }
+    }
+  ]
+}
