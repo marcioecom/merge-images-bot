@@ -1,27 +1,24 @@
 import { DynamoDB } from "@aws-sdk/client-dynamodb";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { DynamoDBDocument } from "@aws-sdk/lib-dynamodb";
 import "dotenv/config";
 import express from "express";
 import log from "lambda-log";
+import serverless from "serverless-http";
 import twilio from "twilio";
-
-import { mergeImagesFake } from "./utils/index.js";
 
 const { MessagingResponse } = twilio.twiml;
 
 const app = express();
+
 const PHOTOS_TABLE = process.env.PHOTOS_TABLE;
-const dynamoDbClient = DynamoDBDocument.from(
-  new DynamoDB({
-    region: process.env.AWS_REGION,
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    },
-  })
-);
+const dynamoDbClient = DynamoDBDocument.from(new DynamoDB());
+
+const QUEUE_URL = process.env.QUEUE_URL;
+const sqsClient = new SQSClient();
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 app.post("/", async (req, res) => {
   log.info("start get /");
@@ -49,12 +46,17 @@ app.post("/", async (req, res) => {
         TableName: PHOTOS_TABLE,
         Item: {
           whatsappId: body.WaId,
-          imagesUrl: [body.MediaUrl0],
+          imagesUrl: [
+            {
+              mediaUrl: body.MediaUrl0,
+              mediaContentType: body.MediaContentType0,
+            },
+          ],
         },
       });
 
       const message = new MessagingResponse().message(
-        "Obrigado pela imagem! Envie outra para finalizar!"
+        "Obrigado pela imagem! Envie outra para finalizar."
       );
       res.set("Content-Type", "text/xml");
       return res.send(message.toString()).status(200);
@@ -62,7 +64,10 @@ app.post("/", async (req, res) => {
 
     const { imagesUrl } = Item;
 
-    imagesUrl.push(body.MediaUrl0);
+    imagesUrl.push({
+      mediaUrl: body.MediaUrl0,
+      mediaContentType: body.MediaContentType0,
+    });
 
     await dynamoDbClient.update({
       TableName: PHOTOS_TABLE,
@@ -75,11 +80,16 @@ app.post("/", async (req, res) => {
       },
     });
 
-    const message = new MessagingResponse().message(
-      "Aqui está a imagem final!"
+    await sqsClient.send(
+      new SendMessageCommand({
+        QueueUrl: QUEUE_URL,
+        MessageBody: JSON.stringify({ imagesUrl, whatsappId: body.WaId }),
+      })
     );
-    const finalImageUrl = mergeImagesFake(imagesUrl[0], imagesUrl[1]);
-    message.media(finalImageUrl);
+
+    const message = new MessagingResponse().message(
+      "Obrigado pela imagem! Aguarde enquanto processamos."
+    );
 
     log.info("end successfully get /");
     res.set("Content-Type", "text/xml");

@@ -5,12 +5,19 @@ frameworkVersion: "3"
 
 plugins:
   - serverless-esbuild
+  - serverless-lift
 
 custom:
   tableName: "photos-table-${sls:stage}"
+  bucketName: "photos-merged-${sls:stage}"
   esbuild:
     bundle: true
     minify: false
+    external:
+      - sharp
+    packagerOptions:
+      scripts:
+        - npm install --os=linux --cpu=x64 sharp
 
 provider:
   name: aws
@@ -29,14 +36,61 @@ provider:
             - dynamodb:DeleteItem
           Resource:
             - Fn::GetAtt: [PhotosTable, Arn]
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:PutObjectAcl
+          Resource: "arn:aws:s3:::${self:custom.bucketName}/*"
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+          Resource:
+            !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/*'
+
   environment:
     PHOTOS_TABLE: ${self:custom.tableName}
 
+constructs:
+  jobs:
+    type: queue
+    worker:
+      handler: lambdas/mergeImages.handler
+      layers:
+        - arn:aws:lambda:us-east-1:590184084339:layer:sharp:1
+      environment:
+        BUCKET_NAME: ${self:custom.bucketName}
+        TWILIO_ACCOUNT_SID: ${ssm:/twilioAccountSid}
+        TWILIO_AUTH_TOKEN : ${ssm:/twilioAuthToken}
+        TWILIO_PHONE_NUMBER: ${ssm:/twilioPhoneNumber}
+
+  photos:
+    type: storage
+    extensions:
+      bucket:
+        Properties:
+          BucketName: ${self:custom.bucketName}
+          PublicAccessBlockConfiguration:
+            BlockPublicAcls: false
+            IgnorePublicAcls: false
+            BlockPublicPolicy: false
+            RestrictPublicBuckets: false
+          OwnershipControls:
+            Rules:
+              - ObjectOwnership: ObjectWriter
+          CorsConfiguration:
+            CorsRules:
+              - AllowedOrigins: ["*"]
+                AllowedHeaders: ["*"]
+                AllowedMethods: [GET, PUT, POST, DELETE, HEAD]
+                MaxAge: 3600
+
 functions:
   api:
-    handler: handler.handler
+    handler: lambdas/api.handler
     events:
       - httpApi: "*"
+    environment:
+      QUEUE_URL: ${construct:jobs.queueUrl}
 
 resources:
   Resources:
