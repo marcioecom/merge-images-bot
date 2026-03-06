@@ -1,42 +1,46 @@
 # Merge Images Bot
 
-Bot para mesclar duas imagens via WhatsApp.
+A WhatsApp bot that merges two images into one using AWS serverless infrastructure.
 
-![diagrama](diagram.png)
+![architecture diagram](diagram.png)
 
-## 🚀 Começando
+## Tech Stack
 
-Essas instruções permitirão que você obtenha uma cópia do projeto em operação na sua máquina local para fins de desenvolvimento e teste.
+- **AWS Lambda** - serverless compute for processing functions
+- **AWS API Gateway** - HTTP API endpoint for Twilio webhooks
+- **AWS DynamoDB** - NoSQL storage for image metadata
+- **AWS SQS** - message queue for async image processing
+- **AWS S3** - object storage for images
+- **Twilio** - WhatsApp API integration
+- **Serverless Framework** - infrastructure as code and deployment
 
-### 📋 Pré-requisitos
+## Prerequisites
 
-De que coisas você precisa para instalar o software e como instalá-lo?
+- [Serverless Framework](https://www.serverless.com/framework/docs/getting-started/)
+- [AWS CLI configured](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+- [Twilio account and credentials](https://www.twilio.com/docs/usage/tutorials/how-to-use-your-free-trial-account)
 
-* Serverless Framework ([link](https://www.serverless.com/framework/docs/getting-started/))
-* Conta AWS e CLI configurada ([link](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html))
-* Conta Twilio e credenciais ([link](https://www.twilio.com/docs/usage/tutorials/how-to-use-your-free-trial-account))
+## Getting Started
 
-### 🔧 Instalação
-
-1. Clone o repositório
+1. Clone the repository
     ```sh
     git clone git@github.com:marcioecom/merge-images-bot.git
     ```
-2. Instale os pacotes
+2. Install dependencies
     ```sh
-    npm install # ou yarn
+    npm install
     ```
-3. Configure as variáveis de ambiente
+3. Set up environment variables
     ```sh
     cp .env.example .env
     ```
-    Preencha as variáveis de ambiente no arquivo .env
+    Fill in the required values in the `.env` file.
 
-4. Execute localmente
+4. Run locally
     ```sh
     sls invoke local -f jobsWorker --path mock/mergeImage.data.json \
       -e TWILIO_ACCOUNT_SID=your-account-sid \
-      -e TWILIO_AUTH_TOKEN=your-auth-token \
+      -e TWILIO_AUTH_TOKEN=your-auth-token
     ```
 
 5. Deploy
@@ -44,12 +48,12 @@ De que coisas você precisa para instalar o software e como instalá-lo?
     sls deploy --stage dev
     ```
 
-## 🛠️ Construído com
+## Built With
 
-* [Serverless](https://www.serverless.com/) - Framework para construir aplicativos sem servidor
-* [Lambda](https://aws.amazon.com/pt/lambda/) - Usada para executar funções sem provisionar ou gerenciar servidores
-* [Api Gateway](https://aws.amazon.com/pt/api-gateway/) - Usada para criar, publicar, manter, monitorar e proteger APIs em escala
-* [DynamoDB](https://aws.amazon.com/pt/dynamodb/) - Banco de dados NoSQL
-* [SQS](https://aws.amazon.com/pt/sqs/) - Serviço de filas de mensagens
-* [S3](https://aws.amazon.com/pt/s3/) - Armazenamento de objetos
-* [Twilio](https://www.twilio.com/) - Plataforma de integração com a API do WhatsApp
+- [Serverless Framework](https://www.serverless.com/) - build and deploy serverless applications
+- [AWS Lambda](https://aws.amazon.com/lambda/) - run code without provisioning servers
+- [AWS API Gateway](https://aws.amazon.com/api-gateway/) - create and manage APIs at scale
+- [AWS DynamoDB](https://aws.amazon.com/dynamodb/) - managed NoSQL database
+- [AWS SQS](https://aws.amazon.com/sqs/) - managed message queue service
+- [AWS S3](https://aws.amazon.com/s3/) - object storage
+- [Twilio](https://www.twilio.com/) - WhatsApp API integration platform
